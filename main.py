@@ -2,7 +2,7 @@ import streamlit as st
 import os
 from openai import OpenAI
 #版本号
-version="1.0.0"
+version="1.0.1"
 # 标题
 st.title(f"ywwのAI-智能伴侣 V{version} ")
 #logo
