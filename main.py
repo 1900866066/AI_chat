@@ -1,9 +1,11 @@
 import streamlit as st
 import os
 from openai import OpenAI
+import json
+import datetime
 
 #版本号
-version="1.0.3"
+version="1.0.4"
 
 #设置页面
 st.set_page_config(layout="wide",
@@ -12,15 +14,32 @@ st.set_page_config(layout="wide",
                    initial_sidebar_state="expanded",
                    menu_items={"About": "基于调用deepseekAPI接口开发的AI智能伴侣\n\n作者：岳文武\n\nQQ:1900866066"},
                    )
+
+#定义保存角色数据以及聊天数据函数
+def save_data(partner_name, partner_skill, partner_character, messages, affection):
+    data = {
+        "partner_name": partner_name,
+        "partner_skill": partner_skill,
+        "partner_character": partner_character,
+        "messages": messages,
+        "affection": affection
+    }
+    if not os.path.exists("session"):
+        os.makedirs("session")
+    #如果聊天数据不为空保存数据
+    if messages:
+        with open(f"session/{partner_name}.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+
 # 标题
 st.title(f"ywwのAI-智能伴侣 V{version} ")
 
 #logo
-st.logo("./resource/Image_1779353928271_346.jpg")
+st.logo("./resource/9532155751500273807.suf.jpg")
 
 #副标题
 st.subheader("软件の吉祥物")
-
 #吉祥物
 st.image("./resource/1779353560318.jpg", width=100)
 
@@ -40,6 +59,21 @@ if "partner_character" not in st.session_state:
 if "affection" not in st.session_state:
     st.session_state.affection = 30
 
+# 根据好感度匹配表情
+aff = st.session_state.affection
+if 0 <= aff <= 20:
+    face = "💔"
+elif 21 <= aff <= 40:
+    face = "🙂"
+elif 41 <= aff <= 60:
+    face = "😊"
+elif 61 <= aff <= 80:
+    face = "💓"
+else:
+    face = "💑"
+
+# 显示当前聊天对象
+st.markdown(f"###### 🎀 当前聊天对象：_:blue[{st.session_state.partner_name}]_  |  好感度：{st.session_state.affection}{face}")
 
 #输出聊天缓存信息
 for mess in st.session_state.messages:
@@ -47,7 +81,11 @@ for mess in st.session_state.messages:
 
 #添加侧边栏
 with st.sidebar:
-    st.title("伴侣消息设置")
+    #保存当前角色按钮
+    if st.button(":red[保存当前角色]",width="stretch",icon="📁"):
+        save_data(st.session_state.partner_name, st.session_state.partner_skill, st.session_state.partner_character, st.session_state.messages, st.session_state.affection)
+        st.success("保存成功")
+    st.title("伴侣信息设置")
     #输入伴侣名称
     partner_name=st.text_input("伴侣名称：", value=st.session_state.partner_name,placeholder="请输入伴侣名称")
     if partner_name:
