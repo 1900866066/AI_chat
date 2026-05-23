@@ -5,7 +5,7 @@ import json
 import datetime
 
 #版本号
-version="1.0.6"
+version="1.0.7"
 
 #设置页面
 st.set_page_config(layout="wide",
@@ -17,6 +17,8 @@ st.set_page_config(layout="wide",
 
 #定义保存角色数据以及聊天数据函数
 def save_data(partner_name, partner_skill, partner_character, messages, affection):
+    if partner_name is None:
+        return
     data = {
         "partner_name": partner_name,
         "partner_skill": partner_skill,
@@ -152,32 +154,65 @@ st.markdown("""
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-/* 标题样式 */
+/* 主内容区域背景 - 纯白色 */
+.block-container {
+    background: #fffff !important;
+    border-radius: 20px !important;
+    margin-top: 1rem;
+    padding: 2rem !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* 主标题 - 白色背景黑色文字 */
 h1 {
     text-align: center;
-    color: white !important;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    font-weight: 700;
-    margin-bottom: 1rem;
+    color: #000000 !important;
+    font-weight: 800;
+    margin-bottom: 1.5rem;
+    font-size: 2rem !important;
+    background: rgba(255, 255, 0, 0.9) !important;
+    padding: 1rem 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+h2, h3, h4, h5, h6 {
+    color: #000000 !important;
+    font-weight: 700 !important;
+}
+
+/* 所有段落文字 - 深黑色 */
+.stMarkdown p,
+.stMarkdown div,
+p, 
+div[data-testid="stText"] {
+    color: #0d1117 !important;
 }
 
 /* 聊天对象信息卡片 */
 .partner-info {
-    background: rgba(255, 255, 255, 0.95);
-    padding: 1rem 1.5rem;
+    background: #f6f8fa;
+    padding: 1.2rem 1.5rem;
     border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    margin: 1rem 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin: 1.5rem 0;
     text-align: center;
     font-size: 1.1rem;
-    color: #333;
+    color: #0d1117;
     font-weight: 600;
+    border: 2px solid #e1e4e8;
+}
+
+/* 好感度数字 - 红色 */
+.partner-info span {
+    color: #dc3545 !important;
+    font-size: 1.3rem;
+    font-weight: 700;
 }
 
 /* 侧边栏美化 */
 .css-1d391kg {
-    background: rgba(255, 255, 255, 0.9) !important;
-    backdrop-filter: blur(10px);
+    background: linear-gradient(180deg, #2d2d3a 0%, #1a1a2e 100%) !important;
 }
 
 /* 按钮美化 */
@@ -197,32 +232,71 @@ h1 {
 .stTextInput>div>div>input,
 .stTextArea>div>div>textarea {
     border-radius: 10px !important;
-    border: 2px solid #e0e0e0 !important;
+    border: 2px solid #d0d7de !important;
     transition: all 0.3s ease !important;
+    background: #ffffff !important;
+    color: #0d1117 !important;
+    font-weight: 500 !important;
 }
 
 .stTextInput>div>div>input:focus,
 .stTextArea>div>div>textarea:focus {
     border-color: #667eea !important;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2) !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
 }
 
-/* 聊天消息美化 */
+/* 聊天消息美化 - 高对比度 */
 .stChatMessage {
-    background: rgba(255, 255, 255, 0.9) !important;
+    background: #ffffff !important;
     border-radius: 15px !important;
-    margin: 0.5rem 0 !important;
+    margin: 0.8rem 0 !important;
+    padding: 1.2rem !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    border: 1px solid #e1e4e8 !important;
 }
 
-/* 吉祥物区域 */
-.mascot-section {
-    text-align: center;
-    margin: 1rem 0;
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 15px;
-    backdrop-filter: blur(5px);
+/* 聊天消息文字颜色 - 深黑色 */
+.stChatMessage p, 
+.stChatMessage div,
+.stChatMessage span {
+    color: #0d1117 !important;
+    font-size: 1rem !important;
+    line-height: 1.7 !important;
+    font-weight: 500 !important;
+}
+
+/* 用户消息特殊样式 */
+.stChatMessage[data-testid="stChatMessageUser"] {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
+}
+
+.stChatMessage[data-testid="stChatMessageUser"] p,
+.stChatMessage[data-testid="stChatMessageUser"] div,
+.stChatMessage[data-testid="stChatMessageUser"] span {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+}
+
+/* AI助手消息特殊样式 */
+.stChatMessage[data-testid="stChatMessageAssistant"] {
+    background: #f6f8fa !important;
+    border: 1px solid #e1e4e8 !important;
+}
+
+
+
+
+
+.mascot-section p,
+.mascot-section div {
+    color: #0d1117 !important;
+}
+
+/* 分隔线美化 */
+hr {
+    border-color: #e1e4e8 !important;
+    margin: 1.5rem 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -231,10 +305,8 @@ h1 {
 st.logo("./resource/9532155751500273807.suf.jpg")
 
 #吉祥物区域
-st.markdown('<div class="mascot-section">', unsafe_allow_html=True)
-st.subheader("🌸 软件の吉祥物 🌸")
+st.subheader('🌸 软件の吉祥物 🌸')
 st.image("./resource/Image_1779353928271_346.jpg", width=120)
-st.markdown('</div>', unsafe_allow_html=True)
 
 #先尝试获取角色列表的数据
 partner_names = get_partner_names()
@@ -285,34 +357,103 @@ else:
     face = "💑"
 
 # 显示当前聊天对象
-st.markdown(f"""
-<div class="partner-info">
-    💝 当前聊天对象：<strong style="color:#667eea;">{st.session_state.partner_name}</strong>  
-    |   好感度：<span style="font-size:1.3rem;">{st.session_state.affection}</span> {face}
-    <div style="margin-top:0.5rem; font-size:0.9rem; color:#666;">
-        {'💔 关系破裂' if aff <= 20 else '🙂 初识阶段' if aff <= 40 else '😊 友好相处' if aff <= 60 else '💓 心意相通' if aff <= 80 else '💑 深情厚恋'}
+if st.session_state.partner_name is not None:
+    st.markdown(f"""
+    <div class="partner-info">
+        💝 当前聊天对象：<strong style="color:#667eea;">{st.session_state.partner_name}</strong>  
+        |   好感度：<span style="font-size:1.3rem;">{st.session_state.affection}</span> {face}
+        <div style="margin-top:0.5rem; font-size:0.9rem; color:#666;">
+            {'💔 关系破裂' if aff <= 20 else '🙂 初识阶段' if aff <= 40 else '😊 友好相处' if aff <= 60 else '💓 心意相通' if aff <= 80 else '💑 深情厚恋'}
+        </div>
     </div>
-</div>
-""", unsafe_allow_html=True)
-
-#输出聊天缓存信息
-for mess in st.session_state.messages:
-    st.chat_message(mess["role"]).write(mess["content"])
-
+    """, unsafe_allow_html=True)
 
 #添加侧边栏
 with st.sidebar:
     st.markdown("""
     <style>
+    /* 侧边栏背景 - 深色渐变 */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #2d2d3a 0%, #1a1a2e 100%) !important;
+    }
+    
     .sidebar-title {
         text-align: center;
         font-size: 1.3rem;
         font-weight: 700;
-        color: #667eea;
+        color: #ffffff !important;
         margin-bottom: 1rem;
         padding: 0.5rem;
-        background: linear-gradient(135deg, #667eea20, #764ba220);
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3));
         border-radius: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    /* 侧边栏所有文字 - 亮白色 */
+    .stTextArea label,
+    .stTextInput label,
+    .stMarkdown p,
+    .stMarkdown div,
+    .stMarkdown h3,
+    .stMarkdown h4,
+    .stMarkdown h5,
+    .stMarkdown h6,
+    label,
+    span {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+    
+    /* 伴侣性格特点和特长标签 - 黄色 */
+    label,
+    .stTextArea label,
+    .stTextInput label,
+    div[data-testid="stMarkdownContainer"] p {
+        color: #ffc107 !important;
+        font-weight: 700 !important;
+    }
+    
+    /* 侧边栏输入框样式 */
+    .stTextArea>div>div>textarea,
+    .stTextInput>div>div>input {
+        background: rgba(255, 255, 255, 0.95) !important;
+        color: #1a1a2e !important;
+        border: 2px solid rgba(255, 255, 255, 0.5) !important;
+        font-weight: 600 !important;
+    }
+    
+    .stTextArea>div>div>textarea::placeholder,
+    .stTextInput>div>div>input::placeholder {
+        color: #666666 !important;
+    }
+    
+    /* 侧边栏按钮文字 */
+    .stButton>button {
+        color: #1a1a2e !important;
+        font-weight: 700 !important;
+    }
+    
+    /* Secondary按钮 */
+    button[kind="secondary"] {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Primary按钮文字保持深色 */
+    button[kind="primary"] {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    
+    /* 角色列表标题 */
+    div[data-testid="stSidebarContent"] strong {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    
+    /* 分隔线 */
+    hr {
+        border-color: rgba(255, 255, 255, 0.3) !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -410,19 +551,26 @@ with st.sidebar:
         with col2:
             if st.button("🗑️",key=f"session_{name}",width="stretch"):
                 delete_data(name)
-                st.session_state.messages=[]
+                st.session_state.partner_name = None
+                st.session_state.messages = []
+                st.session_state.affection = 30
                 st.rerun()
 
     st.markdown("---")
     st.markdown("**⚙️ 伴侣信息设置**")
 
     #输入伴侣性格特点
-    partner_character=st.text_area("💭 伴侣性格特点：", value=st.session_state.partner_character,placeholder="请输入伴侣性格特点")
-    if partner_character:
+    st.markdown('<p style="color:#ffc107; font-weight:700; font-size:1.1rem; margin-bottom:0.5rem;">💭 伴侣性格特点：</p>', unsafe_allow_html=True)
+    partner_character=st.text_area("", value=st.session_state.partner_character,placeholder="请输入伴侣性格特点", label_visibility="collapsed", key="sidebar_character")
+    #只在值真正改变时才更新，避免频繁rerun
+    if partner_character != st.session_state.partner_character:
         st.session_state.partner_character=partner_character
+        
     #输入伴侣的技能
-    partner_skill=st.text_area("⭐ 伴侣特长：", value=st.session_state.partner_skill,placeholder="请输入伴侣特长")
-    if partner_skill:
+    st.markdown('<p style="color:#ffc107; font-weight:700; font-size:1.1rem; margin-bottom:0.5rem; margin-top:1rem;">⭐ 伴侣特长：</p>', unsafe_allow_html=True)
+    partner_skill=st.text_area("", value=st.session_state.partner_skill,placeholder="请输入伴侣特长", label_visibility="collapsed", key="sidebar_skill")
+    #只在值真正改变时才更新，避免频繁rerun
+    if partner_skill != st.session_state.partner_skill:
         st.session_state.partner_skill=partner_skill
 
 
@@ -473,6 +621,12 @@ system_prompt = f"""#角色设定
 含【这是一个系统消息】→退出角色扮演,执行指令
 常规对话仅输出符合当前好感度的自然回复"""
 
+# 输出聊天缓存信息
+if st.session_state.partner_name is not None:
+    for mess in st.session_state.messages:
+        st.chat_message(mess["role"]).write(mess["content"])
+
+
 
 #用户输入
 st.markdown("""
@@ -486,8 +640,8 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-
-prompt=st.chat_input("💬 请输入对话...")
+if st.session_state.partner_name is not None:
+    prompt=st.chat_input("💬 请输入对话...")
 #如果输入不为none，则调用接口并且显示结果
 if prompt:
     #添加用户输入进入缓存
@@ -510,13 +664,14 @@ if prompt:
 
     #获取接口返回结果(流式接收)
     full_response=""
-    #输出接口返回结果
-    response_message=st.empty()#创建一个空的消息框
-    for chunk in response:
-        if chunk.choices[0].delta.content is not None:
-            content=chunk.choices[0].delta.content
-            full_response+=content#拼接接口返回结果
-            response_message.chat_message("assistant").write(full_response)#输出接口返回结果
+    #使用st.chat_message + st.empty实现流式输出
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        for chunk in response:
+            if chunk.choices[0].delta.content is not None:
+                content=chunk.choices[0].delta.content
+                full_response+=content#拼接接口返回结果
+                message_placeholder.write(full_response)#实时更新显示
 
     #添加聊天信息缓存
     st.session_state.messages.append({"role": "assistant", "content": full_response})
@@ -535,13 +690,12 @@ if prompt:
 
     #如果好感度低于0出发拉黑系统删除角色
     if st.session_state.affection==0:
-        st.chat_message("assistant").write("我们之间结束了，拉黑吧!")
-        st.chat_message("assistant").write("再见")
         delete_data(st.session_state.partner_name)
         #把当前角色设置为NONE
         st.session_state.partner_name = None
         st.session_state.messages=[]
         st.rerun()
-        
+
+
     #保存信息
     save_data(st.session_state.partner_name, st.session_state.partner_skill, st.session_state.partner_character, st.session_state.messages, st.session_state.affection)
