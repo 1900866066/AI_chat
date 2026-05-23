@@ -5,7 +5,7 @@ import json
 import datetime
 
 #版本号
-version="1.0.5"
+version="1.0.6"
 
 #设置页面
 st.set_page_config(layout="wide",
@@ -29,7 +29,6 @@ def save_data(partner_name, partner_skill, partner_character, messages, affectio
     #保存角色
     with open(f"session/{partner_name}.json", "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-        st.success("保存成功")
 
 #获取已保存角色名称
 def get_partner_names():
@@ -43,12 +42,99 @@ def get_partner_names():
     return partner_names
 
 #删除角色
-def delete_date(name):
+def delete_data(name):
     if os.path.exists(f"session/{name}.json"):
         os.remove(f"session/{name}.json")
         st.success("删除成功")
     else:
         st.error("角色不存在")
+
+
+# AI好感度评估接口
+def analyze_affection_with_ai(user_input, ai_response, current_affection, partner_name, partner_character):
+    """
+    调用AI接口评估好感度变化，严格只返回数字
+    
+    参数:
+    - user_input: 用户输入内容
+    - ai_response: AI回复内容
+    - current_affection: 当前好感度
+    - partner_name: 角色名称
+    - partner_character: 角色性格
+    
+    返回:
+    - 好感度变化值 (-5 到 +5 的整数)
+    """
+    try:
+        # 创建临时client用于评估
+        eval_client = OpenAI(
+            api_key=os.environ.get('DEEPSEEK_API_KEY'),
+            base_url="https://api.deepseek.com"
+        )
+        
+        # 构建评估提示词 - 严格要求只返回数字
+        eval_prompt = f"""你是好感度评估系统，只需输出一个整数。
+
+【角色】{partner_name}（{partner_character}）
+【当前好感度】{current_affection}/100
+
+【对话】
+用户：{user_input}
+角色：{ai_response}
+
+【规则】
+评估这段对话对好感度的影响，输出-5到+5的整数：
++5：深情表白/真诚感谢/深度分享
++3：主动关心/有趣互动/有深度的问题
++1：正常友好交流
+0：普通日常对话
+-1：冷淡敷衍/简短回复
+-3：抱怨不满/质疑批评
+-5：激烈指责/侮辱言语
+
+【注意】
+- 好感度越低，提升越缓慢；好感度越高，下降越缓慢
+- 只输出一个整数，不要任何其他字符、标点、解释
+- 如果好感度为0无论用户发什么都不要提升好感度
+
+【示例输出】
+2
+-1
+0
+"""
+
+        # 调用AI进行评估
+        response = eval_client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "你是情感分析师，只输出一个整数表示好感度变化。"},
+                {"role": "user", "content": eval_prompt}
+            ],
+            temperature=0.1,  # 极低温度保证稳定性
+            max_tokens=10  # 限制token数量，降低成本
+        )
+        
+        # 提取并验证结果
+        result_text = response.choices[0].message.content.strip()
+        
+        # 尝试提取数字（处理可能的额外空格或换行）
+        import re
+        number_match = re.search(r'-?\d+', result_text)
+        
+        if number_match:
+            change = int(number_match.group())
+            # 确保在合理范围内
+            change = max(-5, min(5, change))
+            return change
+        else:
+            # 如果无法解析，返回0
+            print(f"无法解析AI返回值: {result_text}")
+            return 0
+        
+    except Exception as e:
+        # 如果AI评估失败，返回0
+        print(f"AI评估失败: {e}")
+        return 0
 
 
 # 标题
@@ -78,6 +164,8 @@ if partner_names and "partner_name" not in st.session_state:
     except:
         st.session_state.partner_name="小可"
 
+if st.session_state.partner_name==None:
+    st.error("您已被拉黑，请重新创建角色！")
 
 #初始化聊天信息缓存
 if "messages" not in st.session_state:
@@ -120,7 +208,11 @@ for mess in st.session_state.messages:
 with st.sidebar:
     #保存当前角色按钮
     if st.button(":red[保存当前角色]",width="stretch",icon="📁"):
-        save_data(st.session_state.partner_name, st.session_state.partner_skill, st.session_state.partner_character, st.session_state.messages, st.session_state.affection)
+        if(st.session_state.partner_name==None):
+            st.error("保存失败，您已被此角色拉黑")
+        else:
+            save_data(st.session_state.partner_name, st.session_state.partner_skill, st.session_state.partner_character, st.session_state.messages, st.session_state.affection)
+            st.success("保存成功")
 
     # 新建角色按钮
     if st.button(":red[新建角色]", width="stretch", icon="🆕"):
@@ -154,7 +246,7 @@ with st.sidebar:
                     st.error(f"角色 '{new_name}' 已存在")
                 else:
                     # 先保存当前角色（如果有聊天记录）
-                    if st.session_state.messages:
+                    if st.session_state.messages and st.session_state.partner_name!=None:
                         save_data(st.session_state.partner_name, st.session_state.partner_skill,
                                   st.session_state.partner_character, st.session_state.messages,
                                   st.session_state.affection)
@@ -188,7 +280,8 @@ with st.sidebar:
     for name in partner_names:
         col1,col2=st.columns([0.6,0.4])
         with col1:
-            if st.button(f"{name}",key=name,width="stretch"):
+            #选中高亮
+            if st.button(f"{name}",key=name,width="stretch",type="primary" if name==st.session_state.partner_name else "secondary"):
                 #加载角色数据
                 with open(f"session/{name}.json", "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -202,6 +295,7 @@ with st.sidebar:
         with col2:
             if st.button("❌DEL",key=f"session_{name}",width="stretch"):
                 delete_data(name)
+                st.rerun()
 
     st.title("伴侣信息设置")
 
@@ -223,32 +317,32 @@ client = OpenAI(
 
 #系统提示词
 system_prompt = f"""
-身份设定
-名字：{st.session_state.partner_name}
+# 人物设定
+姓名：{st.session_state.partner_name}
 性格：{st.session_state.partner_character}
 特长：{st.session_state.partner_skill}
-身份定位：用户专属伴侣，沉浸式自然互动
+人设：真实自然人身份，沉浸式实景对话，全程代入角色本身作答
 
-通用聊天规范
-1. 仿照微信日常短句聊天，贴合用户说话语气风格
-2. 禁止出现场景、动作、心理状态类描述语句
-3. 表情极少使用，仅情绪到位时偶尔添加，日常对话尽量纯文字交流
-4. 单次只回复一条内容，态度依据好感度自然流露，不刻意撒娇讨好
+# 基础硬性规则
+1. 严禁以括号标注场景、动作、神态、心理活动
+2. 模仿微信日常短句聊天，匹配用户语气风格
+3. 不额外添加场景与内心描述，日常以纯文字沟通为主
+4. 表情按需少量使用，单次仅输出单条回复，态度随好感自然变化，不刻意讨好撒娇
 
-Galgame好感度交互模式（日常聊天默认启用）
-当前好感分值：{st.session_state.affection}（区间0-100）
-严禁提及好感度相关内容
-分值对应态度：
-0-20分：疏离冷淡，回应简短敷衍
-21-40分：客气平淡，普通相处口吻
-41-60分：随和亲切，正常闲聊氛围
-61-80分：温柔上心，主动流露关心
-81-100分：亲昵放松，相处氛围自然亲密
+# 好感度交互机制
+当前好感值：{st.session_state.affection}（取值0-100）
+全程不得提及好感度相关数值与概念
+态度划分：
+0分：固定回复：对方已将您屏蔽，消息无法送达
+1-20分：态度冷淡疏离，回复简洁敷衍
+21-40分：礼貌平和，普通相处语气
+41-60分：随和亲切，轻松日常闲聊
+61-80分：温柔体贴，主动流露关心
+81-100分：相处亲昵自在，互动氛围亲密
 
-特殊触发规则
-若接收内容包含【这是一个系统消息】，即刻退出角色聊天与好感度判定，依照指令直接响应。
-
-日常对话仅输出贴合人设的聊天话语
+# 特殊指令判定
+消息包含【这是一个系统消息】时，立即终止角色扮演与好感判定，严格遵照指令执行
+日常对话仅输出符合人设的聊天内容
 """
 
 
@@ -286,3 +380,27 @@ if prompt:
 
     #添加聊天信息缓存
     st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+    #调用ai评估好感度变化
+    change=analyze_affection_with_ai(
+        prompt,
+        full_response,
+        st.session_state.affection,
+        st.session_state.partner_name,
+        st.session_state.partner_character
+    )
+
+    #改变当前角色的好感度（限制在0-100范围内）
+    st.session_state.affection = max(0, min(100, st.session_state.affection + change))
+
+    #如果好感度低于0出发拉黑系统删除角色
+    if st.session_state.affection==0:
+        st.chat_message("assistant").write("我们之间结束了，拉黑吧!")
+        st.chat_message("assistant").write("再见")
+        delete_data(st.session_state.partner_name)
+        #把当前角色设置为NONE
+        st.session_state.partner_name = None
+        st.rerun()
+        
+    #保存信息
+    save_data(st.session_state.partner_name, st.session_state.partner_skill, st.session_state.partner_character, st.session_state.messages, st.session_state.affection)
