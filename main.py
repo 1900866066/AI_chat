@@ -21,6 +21,18 @@ try:
 except:
     st.error("请设置DEEPSEEK_API_KEY环境变量")
 
+#调用部署本地大模型
+#本地大模型名字
+LLM_name1="deepseek-r1:8b"
+#本地大模型url
+LLM_url1="http://localhost:11434/v1"
+#api调用官方大模型
+#api官方大模型名字
+LLM_name2="deepseek-v4-pro"
+#api官方大模型url
+LLM_url2="https://api.deepseek.com"
+
+
 #定义保存角色数据以及聊天数据函数
 def save_data(partner_name, partner_skill, partner_character, messages, affection):
     if partner_name is None:
@@ -75,15 +87,36 @@ def analyze_affection_with_ai(user_input, ai_response, current_affection, partne
     返回:
     - 好感度变化值 (-5 到 +5 的整数)
     """
+    global option
     try:
         # 创建临时client用于评估
         eval_client = OpenAI(
-            api_key=ai_api_key,
-            base_url="https://api.deepseek.com"
+            api_key=ai_api_key if ai_api_key else "ollama",
+            base_url=LLM_url1 if option=="本地部署" else LLM_url2,
         )
         
-        # 构建评估提示词 - 考虑角色性格的影响
-        eval_prompt = f"""#角色信息
+        # 根据模型类型选择提示词
+        if option == "本地部署":
+            # 【方案1】极简提示词 - 适配8B小模型
+            user_short = user_input[:50] if len(user_input) > 50 else user_input
+            ai_short = ai_response[:50] if len(ai_response) > 50 else ai_response
+            
+            eval_prompt = f"""对话评分(-5到5):
+用户:{user_short}
+AI:{ai_short}
+当前好感:{current_affection}
+
+评分:
+5=告白 3=关怀 1=友好 0=普通 -1=冷淡 -3=不满 -5=攻击
+只输出一个数字:"""
+            
+            system_msg = "只输出-5到5之间的一个整数"
+            max_tokens = 10  # 增加到10，给本地模型足够空间
+            timeout = 15
+            print(f"[好感度评估] 📱 使用本地模型(极简提示词)")
+        else:
+            # 【方案2】完整提示词 - 适配API大模型
+            eval_prompt = f"""#角色信息
 姓名:{partner_name}|性格:{partner_character}|当前好感:{current_affection}
 
 #本轮对话
@@ -114,43 +147,141 @@ IF 角色性格含"高冷/傲娇/理性":
 
 #输出要求
 只输出整数(-5,-3,-1,0,1,3,5),无其他字符"""
-
+            
+            system_msg = "你是情感分析师。直接输出一个整数(-5到5)，不要思考过程，只要数字。"
+            max_tokens = 50  # 大幅增加，确保模型能输出完整答案
+            timeout = 30
+            print(f"[好感度评估] ☁️ 使用API模型(完整提示词)")
+        
         # 调用AI进行评估
+        print(f"[好感度评估] 正在调用API...")
+        print(f"[好感度评估] 模型: {LLM_name1 if option=='本地部署' else LLM_name2}")
+        print(f"[好感度评估] API Key: {'已设置' if ai_api_key else '未设置'}")
+        
         response = eval_client.chat.completions.create(
-            model="deepseek-chat",
+            model=LLM_name1 if option=="本地部署" else LLM_name2,
             messages=[
-                {"role": "system", "content": "你是情感分析师，只输出一个整数表示好感度变化。"},
+                {"role": "system", "content": system_msg},
                 {"role": "user", "content": eval_prompt}
             ],
-            temperature=0.1,  # 极低温度保证稳定性
-            max_tokens=10  # 限制token数量，降低成本
+            temperature=0.1,
+            max_tokens=max_tokens,
+            timeout=timeout
         )
         
+        # 调试：打印完整响应结构
+        print(f"[好感度评估] 响应对象: {response}")
+        print(f"[好感度评估] Choices数量: {len(response.choices) if response.choices else 0}")
+        
         # 提取并验证结果
+        if not response.choices:
+            print(f"[好感度评估] ❌ response.choices为空列表")
+            return _simple_affection_eval(user_input, ai_response, current_affection)
+            
+        if not response.choices[0].message:
+            print(f"[好感度评估] ❌ response.choices[0].message为空")
+            return _simple_affection_eval(user_input, ai_response, current_affection)
+            
+        if not response.choices[0].message.content:
+            print(f"[好感度评估] ❌ content为空，尝试从reasoning字段提取...")
+            
+            # 尝试从reasoning_content或reasoning中提取（DeepSeek特有）
+            reasoning_text = None
+            if hasattr(response.choices[0].message, 'reasoning_content') and response.choices[0].message.reasoning_content:
+                reasoning_text = response.choices[0].message.reasoning_content
+                print(f"[好感度评估] 找到reasoning_content: '{reasoning_text[:50]}...'")
+            elif hasattr(response.choices[0].message, 'reasoning') and response.choices[0].message.reasoning:
+                reasoning_text = response.choices[0].message.reasoning
+                print(f"[好感度评估] 找到reasoning: '{reasoning_text[:50]}...'")
+            
+            if reasoning_text:
+                import re
+                number_match = re.search(r'-?\d+', reasoning_text)
+                if number_match:
+                    change = int(number_match.group())
+                    change = max(-5, min(5, change))
+                    print(f"[好感度评估] ✅ 从reasoning提取成功: 变化值={change}")
+                    return change
+                else:
+                    print(f"[好感度评估] ❌ reasoning中未找到数字")
+            
+            print(f"[好感度评估] 切换到规则评估")
+            return _simple_affection_eval(user_input, ai_response, current_affection)
+            
         result_text = response.choices[0].message.content.strip()
         
-        # 尝试提取数字（处理可能的额外空格或换行）
+        # 调试输出
+        print(f"[好感度评估] AI原始返回: '{result_text}' (长度:{len(result_text)})")
+        
+        # 如果返回为空，使用规则评估
+        if not result_text:
+            print(f"[好感度评估] AI返回为空，切换到规则评估...")
+            return _simple_affection_eval(user_input, ai_response, current_affection)
+        
+        # 尝试提取数字
         import re
         number_match = re.search(r'-?\d+', result_text)
         
         if number_match:
             change = int(number_match.group())
-            # 确保在合理范围内
             change = max(-5, min(5, change))
+            print(f"[好感度评估] ✅ 解析成功: 变化值={change}")
             return change
         else:
-            # 如果无法解析，返回0
-            print(f"无法解析AI返回值: {result_text}")
-            return 0
+            print(f"[好感度评估] ❌ 解析失败: '{result_text}'，使用规则评估")
+            return _simple_affection_eval(user_input, ai_response, current_affection)
         
     except Exception as e:
-        # 如果AI评估失败，返回0
-        print(f"AI评估失败: {e}")
-        return 0
+        print(f"[好感度评估] ⚠️ 异常: {type(e).__name__}: {e}")
+        # 发生异常时使用简单规则评估
+        return _simple_affection_eval(user_input, ai_response, current_affection)
+
+
+def _simple_affection_eval(user_input, ai_response, current_affection):
+    """
+    简单的基于规则的评估（备用方案）
+    当AI评估失败时使用
+    """
+    # 合并文本进行分析
+    text = (user_input + " " + ai_response).lower()
+    
+    # 积极词汇
+    positive_words = ['爱', '喜欢', '想', '谢谢', '感谢', '好', '开心', '快乐', '幸福', '温暖', '关心', '陪伴', '温柔', '美', '棒', '赞']
+    # 消极词汇
+    negative_words = ['讨厌', '恨', '烦', '滚', '闭嘴', '垃圾', '废物', '傻', '丑', '无聊', '没用']
+    
+    pos_count = sum(1 for word in positive_words if word in text)
+    neg_count = sum(1 for word in negative_words if word in text)
+    
+    # 计算变化值
+    if pos_count >= 3:
+        change = 3
+    elif pos_count >= 1:
+        change = 1
+    elif neg_count >= 2:
+        change = -3
+    elif neg_count >= 1:
+        change = -1
+    else:
+        change = 0
+    
+    # 好感度调节
+    if current_affection < 30 and change > 0:
+        change = max(0, change - 1)  # 低好感时加分减少
+    elif current_affection > 70 and change < 0:
+        change = min(0, change + 1)  # 高好感时扣分减少
+    
+    print(f"[好感度评估] 🔄 使用规则评估: 积极词{pos_count}个, 消极词{neg_count}个, 变化值={change}")
+    return change
 
 
 # 标题
 st.title(f"✨ ywwのAI-智能伴侣 V{version} ✨")
+
+
+#选择本地大模型还是api官方大模型
+option=st.selectbox("选择大模型：", ["本地部署", "api官方大模型"])
+
 
 #点击下载帮助文档
 try:
@@ -542,7 +673,7 @@ with st.sidebar:
                     st.session_state.new_name_counter += 1  # 更新counter避免key冲突
 
                     st.success(f"角色 '{new_name}' 创建成功！")
-                    st.rerun()
+                    st.rerun()  # 刷新页面以更新侧边栏显示
 
         with col2:
             if st.button("❌ 取消", width="stretch", key=f"cancel_{st.session_state.new_name_counter}"):
@@ -583,25 +714,24 @@ with st.sidebar:
 
     #输入伴侣性格特点
     st.markdown('<p style="color:#ffc107; font-weight:700; font-size:1.1rem; margin-bottom:0.5rem;">💭 伴侣性格特点：</p>', unsafe_allow_html=True)
-    partner_character=st.text_area("", value=st.session_state.partner_character,placeholder="请输入伴侣性格特点", label_visibility="collapsed", key="sidebar_character")
+    partner_character=st.text_area("性格特点", value=st.session_state.partner_character,placeholder="请输入伴侣性格特点", label_visibility="collapsed", key=f"sidebar_character_{st.session_state.partner_name}")
     #只在值真正改变时才更新，避免频繁rerun
     if partner_character != st.session_state.partner_character:
         st.session_state.partner_character=partner_character
         
     #输入伴侣的技能
     st.markdown('<p style="color:#ffc107; font-weight:700; font-size:1.1rem; margin-bottom:0.5rem; margin-top:1rem;">⭐ 伴侣特长：</p>', unsafe_allow_html=True)
-    partner_skill=st.text_area("", value=st.session_state.partner_skill,placeholder="请输入伴侣特长", label_visibility="collapsed", key="sidebar_skill")
+    partner_skill=st.text_area("特长技能", value=st.session_state.partner_skill,placeholder="请输入伴侣特长", label_visibility="collapsed", key=f"sidebar_skill_{st.session_state.partner_name}")
     #只在值真正改变时才更新，避免频繁rerun
     if partner_skill != st.session_state.partner_skill:
         st.session_state.partner_skill=partner_skill
-
 
 
 # 调用deepseek官方接口
 try:
     client = OpenAI(
         api_key=ai_api_key,
-        base_url="https://api.deepseek.com")
+        base_url=LLM_url1 if option=="本地部署" else LLM_url2)
 except:
     st.error("请检查你的API密钥是否正确！")
 
@@ -682,7 +812,7 @@ if st.session_state.partner_name is not None and ai_api_key:
         #调用接口
         try:
             response=client.chat.completions.create(
-                model="deepseek-v4-pro",
+                model=LLM_name1 if option=="本地部署" else LLM_name2,
                 #利用滚雪球式信息叠加，每次调用接口，会自动将上次的回复作为下一次输入实现Ai会话记忆
                 messages=[
                     {"role": "system", "content": f"{system_prompt}"},
@@ -690,8 +820,11 @@ if st.session_state.partner_name is not None and ai_api_key:
                 ],
                 stream=True,
             )
-        except:
-            st.error("接口调用失败，请检查你的api_key是否正确！")
+        except Exception as e:
+            st.error(f"接口调用失败：{str(e)}")
+            # 移除刚才添加的用户消息，避免污染聊天记录
+            st.session_state.messages.pop()
+            st.stop()  # 停止执行后续代码
 
         #获取接口返回结果(流式接收)
         full_response=""
@@ -715,6 +848,10 @@ if st.session_state.partner_name is not None and ai_api_key:
             st.session_state.partner_name,
             st.session_state.partner_character
         )
+        
+        # 如果评估失败（返回0），给用户提示
+        if change == 0:
+            st.toast("⚠️ 好感度评估未生效（本地模型可能输出格式不规范）", icon="⚠️")
 
         #改变当前角色的好感度（限制在0-100范围内）
         st.session_state.affection = max(0, min(100, st.session_state.affection + change))
