@@ -5,7 +5,7 @@ import json
 import datetime
 
 #版本号
-version="1.0.7"
+version="1.0.8"
 
 #设置页面
 st.set_page_config(layout="wide",
@@ -14,6 +14,12 @@ st.set_page_config(layout="wide",
                    initial_sidebar_state="expanded",
                    menu_items={"About": "基于调用deepseekAPI接口开发的AI智能伴侣\n\n作者：岳文武\n\nQQ:1900866066"},
                    )
+
+#尝试从系统环境变量中调取ai_api_key
+try:
+    ai_api_key=os.environ.get('DEEPSEEK_API_KEY')
+except:
+    st.error("请设置DEEPSEEK_API_KEY环境变量")
 
 #定义保存角色数据以及聊天数据函数
 def save_data(partner_name, partner_skill, partner_character, messages, affection):
@@ -72,7 +78,7 @@ def analyze_affection_with_ai(user_input, ai_response, current_affection, partne
     try:
         # 创建临时client用于评估
         eval_client = OpenAI(
-            api_key=os.environ.get('DEEPSEEK_API_KEY'),
+            api_key=ai_api_key,
             base_url="https://api.deepseek.com"
         )
         
@@ -145,6 +151,18 @@ IF 角色性格含"高冷/傲娇/理性":
 
 # 标题
 st.title(f"✨ ywwのAI-智能伴侣 V{version} ✨")
+
+#点击下载帮助文档
+try:
+    st.sidebar.markdown("[点击下载帮助文档](https://github.com/1900866066/AI_chat/blob/main/AI伴侣_帮助文档.docx)")
+except:
+    pass
+
+#api_key调用失败，让用户手动输入api_key
+if not ai_api_key:
+    ai_api_key = st.text_input("请输入api_key：", type="password")
+    if not ai_api_key:
+        st.warning("请输入 DeepSeek API Key 或设置 DEEPSEEK_API_KEY 环境变量")
 
 # 美化CSS样式
 st.markdown("""
@@ -576,9 +594,12 @@ with st.sidebar:
 
 
 # 调用deepseek官方接口
-client = OpenAI(
-    api_key=os.environ.get('DEEPSEEK_API_KEY'),
-    base_url="https://api.deepseek.com")
+try:
+    client = OpenAI(
+        api_key=ai_api_key,
+        base_url="https://api.deepseek.com")
+except:
+    st.error("请检查你的API密钥是否正确！")
 
 #系统提示词 - 强化版
 system_prompt = f"""#角色设定
@@ -640,62 +661,71 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-if st.session_state.partner_name is not None:
+
+
+if st.session_state.partner_name is not None and ai_api_key:
     prompt=st.chat_input("💬 请输入对话...")
-#如果输入不为none，则调用接口并且显示结果
-if prompt:
-    #添加用户输入进入缓存
-    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    #如果输入不为none，则调用接口并且显示结果
+    if prompt:
+        #添加用户输入进入缓存
+        st.session_state.messages.append({"role": "user", "content": prompt})
 
 
-    #输出用户输入内容
-    st.chat_message("user").write(prompt)
+        #输出用户输入内容
+        st.chat_message("user").write(prompt)
 
-    #调用接口
-    response=client.chat.completions.create(
-        model="deepseek-v4-pro",
-        #利用滚雪球式信息叠加，每次调用接口，会自动将上次的回复作为下一次输入实现Ai会话记忆
-        messages=[
-            {"role": "system", "content": f"{system_prompt}"},
-            *st.session_state.messages
-        ],
-        stream=True,
-    )
+        #调用接口
+        try:
+            response=client.chat.completions.create(
+                model="deepseek-v4-pro",
+                #利用滚雪球式信息叠加，每次调用接口，会自动将上次的回复作为下一次输入实现Ai会话记忆
+                messages=[
+                    {"role": "system", "content": f"{system_prompt}"},
+                    *st.session_state.messages
+                ],
+                stream=True,
+            )
+        except:
+            st.error("接口调用失败，请检查你的api_key是否正确！")
 
-    #获取接口返回结果(流式接收)
-    full_response=""
-    #使用st.chat_message + st.empty实现流式输出
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        for chunk in response:
-            if chunk.choices[0].delta.content is not None:
-                content=chunk.choices[0].delta.content
-                full_response+=content#拼接接口返回结果
-                message_placeholder.write(full_response)#实时更新显示
+        #获取接口返回结果(流式接收)
+        full_response=""
+        #使用st.chat_message + st.empty实现流式输出
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            for chunk in response:
+                if chunk.choices[0].delta.content is not None:
+                    content=chunk.choices[0].delta.content
+                    full_response+=content#拼接接口返回结果
+                    message_placeholder.write(full_response)#实时更新显示
 
-    #添加聊天信息缓存
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+        #添加聊天信息缓存
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
 
-    #调用ai评估好感度变化
-    change=analyze_affection_with_ai(
-        prompt,
-        full_response,
-        st.session_state.affection,
-        st.session_state.partner_name,
-        st.session_state.partner_character
-    )
+        #调用ai评估好感度变化
+        change=analyze_affection_with_ai(
+            prompt,
+            full_response,
+            st.session_state.affection,
+            st.session_state.partner_name,
+            st.session_state.partner_character
+        )
 
-    #改变当前角色的好感度（限制在0-100范围内）
-    st.session_state.affection = max(0, min(100, st.session_state.affection + change))
+        #改变当前角色的好感度（限制在0-100范围内）
+        st.session_state.affection = max(0, min(100, st.session_state.affection + change))
 
-    #如果好感度低于0出发拉黑系统删除角色
-    if st.session_state.affection==0:
-        delete_data(st.session_state.partner_name)
-        #把当前角色设置为NONE
-        st.session_state.partner_name = None
-        st.session_state.messages=[]
-        st.rerun()
+        #如果好感度低于0出发拉黑系统删除角色
+        if st.session_state.affection==0:
+            delete_data(st.session_state.partner_name)
+            #把当前角色设置为NONE
+            st.session_state.partner_name = None
+            st.session_state.messages=[]
+            st.rerun()
 
 
-    #保存信息
-    save_data(st.session_state.partner_name, st.session_state.partner_skill, st.session_state.partner_character, st.session_state.messages, st.session_state.affection)
+        #保存信息
+        save_data(st.session_state.partner_name, st.session_state.partner_skill, st.session_state.partner_character, st.session_state.messages, st.session_state.affection)
+else:
+    #当前无角色，要求重新创建角色
+    st.error("当前无角色，请先创建角色")
