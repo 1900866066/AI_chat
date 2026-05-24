@@ -320,12 +320,16 @@ hr {
 """, unsafe_allow_html=True)
 
 #logo
-st.logo("./resource/9532155751500273807.suf.jpg")
-
-#吉祥物区域
-st.subheader('🌸 软件の吉祥物 🌸')
-st.image("./resource/Image_1779353928271_346.jpg", width=120)
-
+try:
+    st.logo("./resource/9532155751500273807.suf.jpg")
+except:
+    st.error("获取logo失败！")
+#聊天区域
+st.subheader('🌸 君の AI 彼女 🌸')
+try:
+    st.image("resource/preview02.jpg", width=200)
+except:
+    st.error("获取图片失败！")
 #先尝试获取角色列表的数据
 partner_names = get_partner_names()
 #如果存在角色就初始化最后一位角色的聊天数据
